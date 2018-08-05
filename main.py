@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
+
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 import math
@@ -9,8 +12,9 @@ import json
 import pymongo
 import requests
 
-DB = "hangzhou"
-base_url = "https://hz.ke.com"
+DB = "shenzhen"
+base_url = "https://sz.ke.com"
+
 
 def get_disctricts():
     url = base_url + "/ershoufang/"
@@ -29,6 +33,7 @@ def get_disctricts():
         distr_name = node.text
         result.append([distr_name, distr_url])
     return result
+
 
 def get_sub_districts():
     districts = get_disctricts()
@@ -51,6 +56,7 @@ def get_sub_districts():
                 "url": sub_distr_url,
             })
 
+
 def get_item_num(entry_url):
     r = requests.get(entry_url, verify=False)
     content = r.content.decode("utf-8")
@@ -61,15 +67,16 @@ def get_item_num(entry_url):
     num_str = num_nodes[0].text.strip()
     return int(num_str)
 
+
 def get_houses_by_sub_district(sub_distr_id, entry_url):
     url_patt = entry_url + "pg{}/"
 
     total_num = get_item_num(entry_url)
-    last_page = math.ceil(total_num/30)
+    last_page = math.ceil(total_num / 30)
     i = 1
     client = pymongo.MongoClient()
     db = client[DB]
-    for i in range(1, last_page+1, 1):
+    for i in range(1, last_page + 1, 1):
         url = url_patt.format(i)
         r = requests.get(url, verify=False)
         content = r.content.decode("utf-8")
@@ -166,6 +173,7 @@ def get_houses_by_sub_district(sub_distr_id, entry_url):
             db.house.insert_one(item)
         i += 1
 
+
 def get_all_houses():
     client = pymongo.MongoClient()
     db = client[DB]
@@ -177,10 +185,11 @@ def get_all_houses():
         distr_name = sub_distr["district"]
         sub_distr_name = sub_distr["sub_district"]
         print(distr_name, sub_distr_name)
-        #if distr_name == "福田区" and sub_distr_name == "银湖":
+        # if distr_name == "福田区" and sub_distr_name == "银湖":
         #    start = 1
         if start == 1:
             get_houses_by_sub_district(sub_distr_id, entry_url)
+
 
 def parse_house_info(house_info):
     items = house_info.split("|")
@@ -194,13 +203,13 @@ def parse_house_info(house_info):
     if len(info_items) < 4:
         print(house_info)
         return {"house_type": "",
-            "shi_num": -1,
-            "ting_num": -1,
-            "size": -1,
-            "has_lift": -1,
-            "direction": "",
-            "decoration": "",
-        }
+                "shi_num": -1,
+                "ting_num": -1,
+                "size": -1,
+                "has_lift": -1,
+                "direction": "",
+                "decoration": "",
+                }
     room_info = info_items[0]
     size_info = info_items[1]
     direc_info = info_items[2]
@@ -226,14 +235,15 @@ def parse_house_info(house_info):
     elif re.search(r'无电梯', lift_info):
         has_lift = False
     result = {"house_type": house_type,
-        "shi_num": shi_num,
-        "ting_num": ting_num,
-        "size": size,
-        "has_lift": has_lift,
-        "direction": direc_info,
-        "decoration": decor_info,
-    }
+              "shi_num": shi_num,
+              "ting_num": ting_num,
+              "size": size,
+              "has_lift": has_lift,
+              "direction": direc_info,
+              "decoration": decor_info,
+              }
     return result
+
 
 def update_house_info():
     client = pymongo.MongoClient()
@@ -248,9 +258,11 @@ def update_house_info():
         build_year = 0
         if matched:
             build_year = int(matched.group(1))
-        db.house.update({"_id": house["_id"]}, {"$set": {"price_num": price_num, "unit_price": unit_price, "build_year": build_year}})
+        db.house.update({"_id": house["_id"]},
+                        {"$set": {"price_num": price_num, "unit_price": unit_price, "build_year": build_year}})
         info = parse_house_info(house["house_info"])
         db.house.update({"_id": house["_id"]}, {"$set": info})
+
 
 def stats():
     client = pymongo.MongoClient()
@@ -265,7 +277,7 @@ def stats():
     for house in houses:
         total += house["build_year"]
         count += 1
-    avg_build_year = total/count
+    avg_build_year = total / count
     avg_age = 2018 - avg_build_year
     print(avg_age)
     import sys
@@ -279,10 +291,13 @@ def stats():
         district_name = district["district_name"]
         sub_districts = district["sub_districts"]
         xiaoqus = db.house.aggregate([
-            {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_districts"}},
+            {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                         "as": "sub_districts"}},
             {"$unwind": "$sub_districts"},
             {"$match": {"sub_districts.district": district_name}},
-            {"$group": {"_id": "$xiaoqu_name", "district_name": {"$first": "$sub_districts.district"}, "xiaoqu_name": {"$first": "$xiaoqu_name"}, "avg_price": {"$avg": "$unit_price"}, "count": {"$sum": 1}}},
+            {"$group": {"_id": "$xiaoqu_name", "district_name": {"$first": "$sub_districts.district"},
+                        "xiaoqu_name": {"$first": "$xiaoqu_name"}, "avg_price": {"$avg": "$unit_price"},
+                        "count": {"$sum": 1}}},
             {"$match": {"count": {"$gte": 3}}},
             {"$sort": {"avg_price": -1}},
             {"$limit": 1},
@@ -298,10 +313,13 @@ def stats():
         district_name = district["district_name"]
         sub_districts = district["sub_districts"]
         xiaoqus = db.house.aggregate([
-            {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_districts"}},
+            {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                         "as": "sub_districts"}},
             {"$unwind": "$sub_districts"},
             {"$match": {"sub_districts.district": district_name}},
-            {"$group": {"_id": "$xiaoqu_name", "district_name": {"$first": "$sub_districts.district"}, "xiaoqu_name": {"$first": "$xiaoqu_name"}, "avg_price": {"$avg": "$unit_price"}, "count": {"$sum": 1}}},
+            {"$group": {"_id": "$xiaoqu_name", "district_name": {"$first": "$sub_districts.district"},
+                        "xiaoqu_name": {"$first": "$xiaoqu_name"}, "avg_price": {"$avg": "$unit_price"},
+                        "count": {"$sum": 1}}},
             {"$match": {"count": {"$gte": 3}}},
             {"$sort": {"avg_price": 1}},
             {"$limit": 1},
@@ -316,7 +334,7 @@ def stats():
     for house in houses:
         total += house["unit_price"]
         count += 1
-    avg_price = total/count
+    avg_price = total / count
     print(avg_price)
 
     print("=========== average house price =============")
@@ -326,12 +344,13 @@ def stats():
     for house in houses:
         total += house["price_num"]
         count += 1
-    avg_price = total/count
+    avg_price = total / count
     print(avg_price)
 
     print("=========== apartment/house =============")
     houses = db.house.aggregate([
-        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_districts"}},
+        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                     "as": "sub_districts"}},
         {"$unwind": "$sub_districts"},
         {"$match": {"sub_districts": {"$ne": []}}},
         {"$group": {"_id": "$house_type", "house_type": {"$first": "$house_type"}, "count": {"$sum": 1}}},
@@ -341,7 +360,8 @@ def stats():
 
     print("=========== biggest houses =============")
     houses = db.house.aggregate([
-        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_districts"}},
+        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                     "as": "sub_districts"}},
         {"$unwind": "$sub_districts"},
         {"$match": {"sub_districts": {"$ne": []}}},
         {"$sort": {"size": -1}},
@@ -352,10 +372,12 @@ def stats():
 
     print("=========== most number of houses district name =============")
     houses = db.house.aggregate([
-        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_districts"}},
+        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                     "as": "sub_districts"}},
         {"$unwind": "$sub_districts"},
         {"$match": {"sub_districts": {"$ne": []}}},
-        {"$group": {"_id": "$sub_districts.district", "district_name": {"$first": "$sub_districts.district"}, "count": {"$sum": 1}}},
+        {"$group": {"_id": "$sub_districts.district", "district_name": {"$first": "$sub_districts.district"},
+                    "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ])
     for house in houses:
@@ -363,7 +385,8 @@ def stats():
 
     print("=========== most number of houses xiaoqu name =============")
     houses = db.house.aggregate([
-        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_districts"}},
+        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                     "as": "sub_districts"}},
         {"$unwind": "$sub_districts"},
         {"$match": {"sub_districts": {"$ne": []}}},
         {"$group": {"_id": "$xiaoqu_name", "xiaoqu_name": {"$first": "$xiaoqu_name"}, "count": {"$sum": 1}}},
@@ -375,10 +398,13 @@ def stats():
 
     print("=========== most expensive xiaoqu name =============")
     houses = db.house.aggregate([
-        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_districts"}},
+        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                     "as": "sub_districts"}},
         {"$unwind": "$sub_districts"},
         {"$match": {"sub_districts": {"$ne": []}}},
-        {"$group": {"_id": "$xiaoqu_name", "district_name": {"$first": "$sub_districts.district"}, "sub_district_name": {"$first": "$sub_districts.sub_district"}, "xiaoqu_name": {"$first": "$xiaoqu_name"}, "avg_unit_price": {"$avg": "$unit_price"}}},
+        {"$group": {"_id": "$xiaoqu_name", "district_name": {"$first": "$sub_districts.district"},
+                    "sub_district_name": {"$first": "$sub_districts.sub_district"},
+                    "xiaoqu_name": {"$first": "$xiaoqu_name"}, "avg_unit_price": {"$avg": "$unit_price"}}},
         {"$sort": {"avg_unit_price": -1}},
         {"$limit": 10}
     ])
@@ -387,10 +413,13 @@ def stats():
 
     print("=========== most expensive sub district =============")
     houses = db.house.aggregate([
-        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_districts"}},
+        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                     "as": "sub_districts"}},
         {"$unwind": "$sub_districts"},
         {"$match": {"sub_districts": {"$ne": []}}},
-        {"$group": {"_id": "$sub_districts.sub_district", "district_name": {"$first": "$sub_districts.district"}, "sub_district_name": {"$first": "$sub_districts.sub_district"}, "avg_unit_price": {"$avg": "$unit_price"}}},
+        {"$group": {"_id": "$sub_districts.sub_district", "district_name": {"$first": "$sub_districts.district"},
+                    "sub_district_name": {"$first": "$sub_districts.sub_district"},
+                    "avg_unit_price": {"$avg": "$unit_price"}}},
         {"$sort": {"avg_unit_price": -1}},
     ])
     for house in houses:
@@ -398,10 +427,12 @@ def stats():
 
     print("=========== most expensive district =============")
     houses = db.house.aggregate([
-        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_districts"}},
+        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                     "as": "sub_districts"}},
         {"$unwind": "$sub_districts"},
         {"$match": {"sub_districts": {"$ne": []}}},
-        {"$group": {"_id": "$sub_districts.district", "district_name": {"$first": "$sub_districts.district"}, "avg_unit_price": {"$avg": "$unit_price"}}},
+        {"$group": {"_id": "$sub_districts.district", "district_name": {"$first": "$sub_districts.district"},
+                    "avg_unit_price": {"$avg": "$unit_price"}}},
         {"$sort": {"avg_unit_price": -1}},
     ])
     for house in houses:
@@ -409,7 +440,8 @@ def stats():
 
     print("=========== most expensive =============")
     houses = db.house.aggregate([
-        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_district"}},
+        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                     "as": "sub_district"}},
         {"$unwind": "$sub_district"},
         {"$match": {"sub_districts": {"$ne": []}}},
         {"$sort": {"price_num": -1}},
@@ -420,7 +452,8 @@ def stats():
 
     print("=========== most expensive unit price =============")
     houses = db.house.aggregate([
-        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id", "as": "sub_district"}},
+        {"$lookup": {"from": "sub_districts", "localField": "sub_distr_id", "foreignField": "_id",
+                     "as": "sub_district"}},
         {"$unwind": "$sub_district"},
         {"$match": {"sub_districts": {"$ne": []}}},
         {"$sort": {"unit_price": -1}},
@@ -429,5 +462,7 @@ def stats():
     for house in houses:
         print(house["title"], house["url"], house["xiaoqu_name"], house["price_num"], house["unit_price"])
 
+
 if __name__ == "__main__":
-    stats()
+    # stats()
+    get_sub_districts()
